@@ -1,0 +1,23 @@
+{
+  "id": "strum_fighter",
+  "name": "Strum Fighter",
+  "version": "0.1.4",
+  "private": false,
+  "script": "game.js",
+  "minigame": {
+    "title": "Strum Fighter",
+    "tagline": "Strum the chord, kill the fighter",
+    "type": "chart-free",
+    "scoring": "chord",
+    "thumbnail": "thumb.png",
+    "modifiers": [
+      { "id": "difficulty", "label": "Difficulty", "default": "medium", "values": ["easy", "medium", "hard"] },
+      { "id": "length", "label": "Waves", "default": "normal", "values": ["short", "normal", "long"] },
+      { "id": "music", "label": "Music", "default": "on", "values": ["on", "off"] }
+    ],
+    "unlocks": [
+      { "id": "skin_ace",   "label": "Ace livery",   "xp": 250 },
+      { "id": "skin_squad", "label": "Squadron livery", "xp": 1000 }
+    ]
+  }
+}
