@@ -2,6 +2,8 @@
 
 A first-person cockpit **chord-shooter** minigame for [Slopsmith](https://github.com/slopsmith/slopsmith).
 
+![Strum Fighter — cockpit view: hyperspace starfield, the "STRUM Dm" prompt, and the reticle locked on a Dm fighter](screenshots/strum-fighter.png)
+
 You fly through a space battle. Each enemy fighter has a **chord name** painted on it by
 the HUD, and your reticle auto-locks the nearest one. **Strum that chord on your guitar to
 destroy it** — a correct strum detonates the fighter, a wrong chord fires but misses. Clear
