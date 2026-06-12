@@ -184,8 +184,9 @@
       const pan = Math.max(-1, Math.min(1, e.group.position.x / sceneMod.PLAY_HALF_W));
       const dist = Math.max(8, -e.group.position.z);
       const gain = Math.max(0.25, Math.min(1, 80 / dist));
-      synth.cueChord(e.chordNotes, { pan, gain });
-      lockCueAt = performance.now();
+      // Only advance the cue timer / trigger the ♪ pulse if audio actually fired
+      // (cueChord bails inside the post-strum duck window).
+      if (synth.cueChord(e.chordNotes, { pan, gain })) lockCueAt = performance.now();
     }
 
     // Alpha for the HUD's locked-chord letters (top-center + bracket).
@@ -460,6 +461,7 @@
       hud.update({
         score, combo, comboAt, hull, hullMax: HULL_MAX, wave, waveCount: totalWaves,
         locked: locked ? locked.chordName : null,
+        lockedIsBoss: !!(locked && locked.boss),
         boss: bossE ? { name: bossE.progName, idx: bossE.progIdx, plates: bossE.plates } : null,
         level: audio.getLevel(),
         lockedScreen, lockKey: lockId, verdict: lastVerdict, toast, banner, reveal,

@@ -41,9 +41,9 @@ No `note_detect` dependency — chord scoring is independent of the note-detecti
 - **Waves** — `short` (3) / `normal` (6) / `long` (10). A boss appears every 3rd wave and on
   the final wave.
 - **Livery** — `auto` / `default` / `ace` / `squad`. Re-themes the cockpit (HUD accent, tracer
-  colour, fill light). `auto` uses your highest unlocked livery. **Ace** unlocks at 250 XP and
-  **Squadron** at 1000 XP (total Minigames profile XP); picking a livery you haven't unlocked
-  gracefully falls back to your best one.
+  colour, fill light). `auto` uses your highest unlocked livery. **Ace** (`ace`) unlocks at
+  250 XP and **Squadron** (`squad`) at 1000 XP (total Minigames profile XP); picking a livery
+  you haven't unlocked gracefully falls back to your best one.
 - **Chord labels** — `on` (default) / `fade` / `off`. `on` is the casual game (letter
   always shown). `fade` shows the letter at spawn and fades it as the fighter closes — the
   ear-training on-ramp. `off` hides the letters entirely (pure ear-only; auto-enables the

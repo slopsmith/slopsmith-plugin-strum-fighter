@@ -108,7 +108,7 @@ export function createHud(container) {
       ctx.textAlign = 'center';
       ctx.font = '700 16px system-ui, sans-serif';
       ctx.fillStyle = 'rgba(180,210,240,0.8)';
-      ctx.fillText(s.boss ? 'PEEL' : 'STRUM', cx, 44);
+      ctx.fillText(s.lockedIsBoss ? 'PEEL' : 'STRUM', cx, 44);
       ctx.font = '900 60px Arial Black, system-ui, sans-serif';
       ctx.fillStyle = '#ffe14d';
       ctx.shadowColor = 'rgba(255,220,60,0.6)'; ctx.shadowBlur = 16;
@@ -120,7 +120,7 @@ export function createHud(container) {
       ctx.textAlign = 'center';
       ctx.font = '700 16px system-ui, sans-serif';
       ctx.fillStyle = `rgba(${accent},0.7)`;
-      ctx.fillText(s.boss ? 'PEEL BY EAR' : 'STRUM BY EAR', cx, 50);
+      ctx.fillText(s.lockedIsBoss ? 'PEEL BY EAR' : 'STRUM BY EAR', cx, 50);
     }
 
     // ── Boss shield bar (top-center, under the chord name) ──
@@ -161,7 +161,7 @@ export function createHud(container) {
       ctx.translate(x, y);
       ctx.rotate((1 - ease) * 0.5);                          // small settle spin
       ctx.strokeStyle = `rgba(${accent},${0.5 + 0.45 * ease})`;
-      ctx.lineWidth = s.boss ? 4 : 3;
+      ctx.lineWidth = s.lockedIsBoss ? 4 : 3;
       for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
         const px = sx * p, py = sy * p;
         ctx.beginPath();
@@ -169,7 +169,7 @@ export function createHud(container) {
         ctx.stroke();
       }
       ctx.restore();
-      if (s.locked && !s.boss && llAlpha > 0.02) {
+      if (s.locked && !s.lockedIsBoss && llAlpha > 0.02) {
         ctx.save();
         ctx.globalAlpha = llAlpha;
         ctx.textAlign = 'center';

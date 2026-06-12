@@ -168,9 +168,12 @@ export function createSynth() {
   // stagger, panned by `pan` (-1..1) and scaled by `gain` (0..1, e.g. nearer =
   // louder). Skipped if disabled or within the post-strum duck window so the
   // cue never bleeds into the chord scorer.
+  // Returns true if it actually scheduled audio, false if it bailed (disabled,
+  // bad args, or inside the post-strum duck window) so callers can gate the
+  // visual ♪ pulse / re-cue timer on real playback.
   function cueChord(notes, optsIn) {
-    if (!cueEnabled || !notes || !notes.length || !ensure()) return;
-    if (performance.now() - lastStrumAt < 280) return; // duck during scoring
+    if (!cueEnabled || !notes || !notes.length || !ensure()) return false;
+    if (performance.now() - lastStrumAt < 280) return false; // duck during scoring
     if (ctx.state === 'suspended') ctx.resume().catch(() => {});
     const o = optsIn || {};
     const pan = Math.max(-1, Math.min(1, o.pan || 0));
@@ -217,6 +220,7 @@ export function createSynth() {
       master.gain.linearRampToValueAtTime(0.16, t + 0.05);
       master.gain.linearRampToValueAtTime(0.5, t + 1.3);
     }
+    return true;
   }
 
   return {

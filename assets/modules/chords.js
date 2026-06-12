@@ -78,8 +78,11 @@ export function pool(difficulty) {
 // passed RNG so callers can vary it per boss without Math.random reaching here).
 export function bossProgression(difficulty, rnd) {
   const list = PROGRESSIONS[difficulty] || PROGRESSIONS.medium;
-  const r = typeof rnd === 'number' ? rnd : Math.random();
-  return list[(r * list.length) | 0] || list[0];
+  // Normalize to [0,1) so out-of-range / non-finite callers don't silently
+  // bias toward the first progression.
+  const raw = Number.isFinite(rnd) ? rnd : Math.random();
+  const r = Math.min(1 - Number.EPSILON, Math.max(0, raw));
+  return list[Math.floor(r * list.length)];
 }
 
 // Per-tier knobs: detection leniency (scoreChord) + enemy pacing.
