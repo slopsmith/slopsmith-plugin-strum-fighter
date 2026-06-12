@@ -17,7 +17,8 @@ Ear-training — enemies can voice their chord, and the letters can fade or vani
   casual play), `fade` (the letter shows at spawn and fades as the fighter closes,
   weaning you off the text), `off` (no letters — pure ear-only; auto-enables the
   chord sound). Bosses hide their progression letters in fade/off (shield pips +
-  progress glyphs still show), and voice each new plate's chord as you peel it.
+  progress glyphs still show), and — when Enemy chord sound is on — voice each new
+  plate's chord as you peel it.
 - **Post-kill chord reveal.** In fade/ear modes, the chord name flashes at the
   explosion when you destroy a target — so you find out whether your ear was right.
   This closes the practice loop (guess → strum → confirm).

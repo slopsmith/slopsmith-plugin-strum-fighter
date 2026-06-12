@@ -286,7 +286,7 @@
           if (r.destroyed) {
             const bonus = 1000 + 250 * r.plateIdx;
             score += Math.round(150 * combo * acc) + bonus;
-            kills++; bossKills++;
+            bossKills++; // counted under "Bosses destroyed", not "Fighters downed"
             weapons.bossExplode(r.pos, r.color);
             synth.bossBoom();
             scene.addShake(0.9);

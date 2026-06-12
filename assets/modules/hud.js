@@ -126,17 +126,17 @@ export function createHud(container) {
     // ── Boss shield bar (top-center, under the chord name) ──
     if (s.boss) {
       const b = s.boss;
-      const remaining = Math.max(0, b.plates - b.idx);
       const bw = Math.min(440, W * 0.6), bx = cx - bw / 2, by = 120;
       ctx.textAlign = 'center';
       ctx.font = '800 15px system-ui, sans-serif';
       ctx.fillStyle = '#ff7088';
       ctx.fillText(`⚠ BOSS — ${b.name.toUpperCase()} ⚠`, cx, by - 8);
-      // Segmented shield plates.
+      // Segmented shield plates — peeled left→right to match the progression
+      // glyphs (a plate is down once its chord index is below the current step).
       const gap = 5, segW = (bw - gap * (b.plates - 1)) / b.plates;
       for (let i = 0; i < b.plates; i++) {
         const segX = bx + i * (segW + gap);
-        const intact = i < remaining;
+        const intact = i >= b.idx;
         ctx.fillStyle = intact ? '#ff5a78' : 'rgba(120,140,160,0.18)';
         if (intact) { ctx.shadowColor = 'rgba(255,90,120,0.7)'; ctx.shadowBlur = 8; }
         ctx.fillRect(segX, by, segW, 12);

@@ -80,7 +80,9 @@ function makeBossLabel(T, name, chords, idx, showLetters) {
   const pipW = 40, gap = 10, totalW = n * pipW + (n - 1) * gap;
   let px = (c.width - totalW) / 2;
   for (let i = 0; i < n; i++) {
-    ctx.fillStyle = i < (n - idx) ? '#ff5a78' : 'rgba(120,140,160,0.25)';
+    // Peel left→right in step with the chord glyphs above (plate i is down
+    // once the progression has advanced past it).
+    ctx.fillStyle = i >= idx ? '#ff5a78' : 'rgba(120,140,160,0.25)';
     ctx.fillRect(px, 168, pipW, 14);
     px += pipW + gap;
   }
