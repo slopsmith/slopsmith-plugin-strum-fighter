@@ -69,7 +69,9 @@ function isUnlocked(skin, owned) {
 //   choice: 'auto' (highest unlocked) | 'default' | 'ace' | 'squad'
 // A locked explicit pick gracefully degrades to the best unlocked livery.
 export function resolveSkin(choice, owned) {
-  const set = owned instanceof Set ? owned : new Set();
+  // Accept a Set (the normal path) or a plain array of unlock ids; anything
+  // else is treated as "owns nothing".
+  const set = owned instanceof Set ? owned : new Set(Array.isArray(owned) ? owned : []);
   const best = () => {
     for (const id of RANK) if (isUnlocked(SKINS[id], set)) return SKINS[id];
     return SKINS.default;

@@ -124,6 +124,10 @@
     let labelMode = ['on', 'fade', 'off'].includes(modifiers.labels) ? modifiers.labels : 'on';
     let chordSoundOn = (modifiers.chord_sound || 'off') === 'on';
     if (labelMode === 'off') chordSoundOn = true;
+    // Write the sanitized/forced values back so the run record + analytics
+    // (sdk.end uses modifiers) reflect what the player actually experienced.
+    modifiers.labels = labelMode;
+    modifiers.chord_sound = chordSoundOn ? 'on' : 'off';
     const bossWaveSet = chords.bossWaves(totalWaves, tier.bossEvery);
     // Escorts that fly with a boss, by difficulty.
     const ESCORTS = { easy: 0, medium: 2, hard: 3 };
