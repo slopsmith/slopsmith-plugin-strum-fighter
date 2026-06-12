@@ -192,7 +192,9 @@
     function lockedLabelAlpha(e) {
       if (!e) return 0;
       if (labelMode === 'on') return 1;
-      if (labelMode === 'off' || e.boss) return 0; // boss letters hide off 'on'
+      // Reached only when mode is 'fade'/'off' ('on' returned above); bosses
+      // always hide their chord letters in those modes.
+      if (labelMode === 'off' || e.boss) return 0;
       const a = (FADE_NEAR_Z - e.group.position.z) / (FADE_NEAR_Z - sceneMod.SPAWN_Z);
       return Math.max(0, Math.min(1, a));
     }
@@ -210,7 +212,7 @@
       };
     }
     let spawnedThisWave = 0, spawnAcc = 0, waveDamage = 0, runDamage = 0;
-    let escortTarget = 0, bossActive = false, waveActive = false;
+    let escortTarget = 0, waveActive = false;
     let gameOver = false, ended = false;
     const startedAt = performance.now();
 
@@ -224,13 +226,12 @@
 
     function startWave() {
       waveActive = true;
-      spawnedThisWave = 0; spawnAcc = 0; waveDamage = 0; bossActive = false;
+      spawnedThisWave = 0; spawnAcc = 0; waveDamage = 0;
       if (isBossWave(wave)) {
         escortTarget = escortCount;
         const prog = chords.bossProgression(difficulty);
         const boss = enemies.spawnBoss(prog);
         boss.bossSpeed = tier.bossSpeed;
-        bossActive = true;
         scene.setAlert(true);
         scene.setWarp(130);
         synth.setIntensity(1);
@@ -273,7 +274,6 @@
         hits++;
         const acc = 0.5 + 0.5 * (typeof result.score === 'number' ? result.score : 1);
         weapons.fire(pos, true);
-        combo = Math.min(99, combo + 1); comboAt = performance.now();
 
         if (isBoss) {
           const r = enemies.hitBoss(target);
@@ -289,7 +289,6 @@
             revealAt(r.pos, chordName);
             awardToast(`BOSS DOWN  +${bonus}`);
             scene.setAlert(false); scene.setWarp(90); synth.setIntensity(0);
-            bossActive = false;
             lastVerdict = { kind: 'hit', text: `${chordName} ✓  core destroyed`, at: performance.now() };
           } else {
             score += Math.round(150 * combo * acc);
@@ -315,6 +314,8 @@
           revealAt(fx ? fx.pos : pos, chordName);
           lastVerdict = { kind: 'hit', text: `${chordName} ✓  +${pts}  (${result.hitStrings}/${result.totalStrings})`, at: performance.now() };
         }
+        // Bump combo AFTER scoring so the first hit counts as x1, not x2.
+        combo = Math.min(99, combo + 1); comboAt = performance.now();
       } else {
         combo = 1;
         weapons.fire(pos, false);
@@ -342,6 +343,7 @@
         `<div style="margin-top:6px">Fighters downed: <b>${kills}</b></div>` +
         `<div>Bosses destroyed: <b>${bossKills}</b></div>` +
         `<div>Accuracy: <b>${accuracy}%</b></div>` +
+        `<div>Hull lost: <b>${runDamage}</b></div>` +
         `<div>Reached wave: <b>${wave}/${totalWaves}</b></div>` +
         `<div>Livery: <b>${skin.label}</b></div>` +
         (labelMode !== 'on'
@@ -353,7 +355,7 @@
         score,
         durationMs: Math.round(performance.now() - startedAt),
         modifiers,
-        meta: { wave, kills, bossKills, accuracy, reason, difficulty, livery: skin.id, labels: labelMode, chordSound: chordSoundOn },
+        meta: { wave, kills, bossKills, accuracy, hullLost: runDamage, reason, difficulty, livery: skin.id, labels: labelMode, chordSound: chordSoundOn },
         summaryHtml,
       });
     }
