@@ -1,4 +1,5 @@
-// Strum Fighter — Three.js scene: renderer, camera, starfield, lighting.
+// Strum Fighter — Three.js scene: renderer, camera, starfield, lighting,
+// nebula + a distant planet backdrop.
 //
 // World layout: camera sits at the cockpit origin (0,0,0) looking down -Z.
 // Enemies spawn far away at negative Z and fly toward the player (+Z); they
@@ -24,7 +25,7 @@ export function createScene(T, container) {
   scene.background = new T.Color(0x05060d);
   scene.fog = new T.FogExp2(0x05060d, 0.0042);
 
-  const camera = new T.PerspectiveCamera(72, 1, 0.1, 1200);
+  const camera = new T.PerspectiveCamera(72, 1, 0.1, 1600);
   camera.position.set(0, 0, 0);
   camera.lookAt(0, 0, -1);
   const camBase = new T.Vector3(0, 0, 0);
@@ -38,6 +39,32 @@ export function createScene(T, container) {
   fill.position.set(0, 0, 8);
   scene.add(fill);
 
+  // ── Distant planet (subtle, slow-rotating sphere far off in a corner) ──
+  const planetGeo = new T.SphereGeometry(90, 48, 32);
+  const planetMat = new T.MeshStandardMaterial({ color: 0x2a3252, emissive: 0x0c1226, emissiveIntensity: 0.28, metalness: 0.1, roughness: 0.95, fog: false });
+  const planet = new T.Mesh(planetGeo, planetMat);
+  planet.position.set(-360, 150, -940);
+  scene.add(planet);
+  const planetLight = new T.DirectionalLight(0xaad0ff, 0.6);
+  planetLight.position.set(1, 0.4, -0.2);
+  scene.add(planetLight);
+  // Atmosphere halo (additive sprite behind the planet).
+  const haloTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 128;
+    const cx = c.getContext('2d');
+    const g = cx.createRadialGradient(64, 64, 30, 64, 64, 64);
+    g.addColorStop(0, 'rgba(120,170,255,0.0)');
+    g.addColorStop(0.78, 'rgba(120,170,255,0.18)');
+    g.addColorStop(1, 'rgba(120,170,255,0)');
+    cx.fillStyle = g; cx.fillRect(0, 0, 128, 128);
+    return new T.CanvasTexture(c);
+  })();
+  const haloMat = new T.SpriteMaterial({ map: haloTex, color: 0x6f93cc, transparent: true, opacity: 0.35, blending: T.AdditiveBlending, depthWrite: false, fog: false });
+  const halo = new T.Sprite(haloMat);
+  halo.position.copy(planet.position);
+  halo.scale.setScalar(250);
+  scene.add(halo);
+
   // ── Nebula backdrop (soft additive color clouds far behind everything) ──
   const softTex = (() => {
     const c = document.createElement('canvas'); c.width = c.height = 128;
@@ -50,14 +77,17 @@ export function createScene(T, container) {
     return new T.CanvasTexture(c);
   })();
   const nebMats = [];
-  const NEB_COLORS = [0x2336b0, 0x6a24b0, 0x115a73];
-  for (let i = 0; i < 3; i++) {
-    const m = new T.SpriteMaterial({ map: softTex, color: NEB_COLORS[i], transparent: true, opacity: 0.16, blending: T.AdditiveBlending, depthWrite: false, fog: false });
+  const nebSprites = [];
+  const NEB_COLORS = [0x2336b0, 0x6a24b0, 0x115a73, 0x402090, 0x10406a];
+  for (let i = 0; i < 5; i++) {
+    const m = new T.SpriteMaterial({ map: softTex, color: NEB_COLORS[i], transparent: true, opacity: 0.15, blending: T.AdditiveBlending, depthWrite: false, fog: false });
     const s = new T.Sprite(m);
-    s.position.set((Math.random() * 2 - 1) * 130, (Math.random() * 2 - 1) * 75, -300 - Math.random() * 60);
-    s.scale.setScalar(190 + Math.random() * 120);
+    s.position.set((Math.random() * 2 - 1) * 150, (Math.random() * 2 - 1) * 85, -320 - Math.random() * 80);
+    s.scale.setScalar(190 + Math.random() * 140);
+    s.userData.drift = (Math.random() * 2 - 1) * 1.2;
     scene.add(s);
     nebMats.push(m);
+    nebSprites.push(s);
   }
 
   // ── Starfield (hyperspace streaks) ──
@@ -77,10 +107,11 @@ export function createScene(T, container) {
   const stars = new T.LineSegments(starGeo, starMat);
   scene.add(stars);
 
-  let warp = 90;        // starfield units/sec
+  let warp = 90, warpTgt = 90; // starfield units/sec (eased toward target)
   let shake = 0;        // current shake magnitude, decays over time
   let swayT = 0;        // flight-sway phase
   let leanCur = 0, leanTgt = 0; // banking toward the action (-1..1)
+  let alertCur = 0, alertTgt = 0; // 0..1 boss-alert red wash on the fill light
 
   function setSize() {
     const w = Math.max(1, container.clientWidth);
@@ -91,8 +122,13 @@ export function createScene(T, container) {
   }
   setSize();
 
+  const fillBase = new T.Color(0x66ccff);
+  const fillAlert = new T.Color(0xff5a6e);
+  const tmpCol = new T.Color();
+
   function update(dt) {
     // Streak stars toward the camera, recycle past the near plane.
+    warp += (warpTgt - warp) * Math.min(1, dt * 2);
     const p = starGeo.attributes.position.array;
     const dz = warp * dt;
     for (let i = 0; i < STAR_N; i++) {
@@ -102,6 +138,16 @@ export function createScene(T, container) {
       p[i * 6 + 5] = hz - STREAK;   // tail trails behind
     }
     starGeo.attributes.position.needsUpdate = true;
+
+    // Backdrop life: slow planet spin + drifting nebulae.
+    planet.rotation.y += dt * 0.015;
+    for (const s of nebSprites) s.position.x += s.userData.drift * dt;
+
+    // Boss-alert tint on the cockpit fill light.
+    alertCur += (alertTgt - alertCur) * Math.min(1, dt * 2.5);
+    tmpCol.copy(fillBase).lerp(fillAlert, alertCur);
+    fill.color.copy(tmpCol);
+    fill.intensity = 0.6 + alertCur * 0.5 + (alertCur > 0 ? Math.sin(swayT * 8) * 0.12 * alertCur : 0);
 
     // Flight feel: idle sway/drift + a slow roll, banked toward the action,
     // plus decaying shake from fire / impacts.
@@ -129,13 +175,24 @@ export function createScene(T, container) {
     update,
     addShake(amt) { shake = Math.min(1.6, shake + amt); },
     setLean(x) { leanTgt = Math.max(-1, Math.min(1, x)); },
-    setWarp(v) { warp = v; },
+    setWarp(v) { warpTgt = v; },
+    setAlert(on) { alertTgt = on ? 1 : 0; },
+    // Re-tint the cockpit fill light + starfield to the active livery.
+    setSkin(skin) {
+      if (!skin) return;
+      fillBase.setHex(skin.light);
+      starMat.color.setHex(skin.star);
+    },
     resize() { setSize(); },
     render() { renderer.render(scene, camera); },
     dispose() {
       starGeo.dispose();
       starMat.dispose();
       softTex.dispose();
+      haloTex.dispose();
+      haloMat.dispose();
+      planetGeo.dispose();
+      planetMat.dispose();
       for (const m of nebMats) m.dispose();
       renderer.dispose();
       if (canvas.parentNode) canvas.parentNode.removeChild(canvas);
