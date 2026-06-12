@@ -2,7 +2,9 @@
 //
 // Draws the canopy frame/vignette, the center targeting reticle, the locked
 // enemy's chord name (big, top-center), score/wave/combo readouts, the hull
-// integrity bar, an input-level meter, and transient hit/miss flashes.
+// integrity bar, an input-level meter, transient hit/miss flashes, a boss
+// shield bar, wave banners, bonus toasts, and the active-livery badge. Accent
+// colours follow the active livery (state.skin).
 
 export function createHud(container) {
   const canvas = document.createElement('canvas');
@@ -12,6 +14,9 @@ export function createHud(container) {
 
   let W = 1, H = 1, dpr = 1;
   let flashColor = null, flashAt = 0;
+  // Default livery accent (teal) — overridden each frame via state.skin.
+  let accent = '120,255,200';
+  let lockKey = null, lockAt = 0; // for the lock-on converge animation
 
   function resize() {
     dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -33,6 +38,8 @@ export function createHud(container) {
   }
 
   function update(s) {
+    const now = performance.now();
+    if (s.skin && s.skin.accent) accent = s.skin.accent;
     ctx.clearRect(0, 0, W, H);
     const cx = W / 2, cy = H / 2;
 
@@ -57,7 +64,7 @@ export function createHud(container) {
     ctx.lineTo(W, H);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = 'rgba(90,180,255,0.45)';
+    ctx.strokeStyle = `rgba(${accent},0.35)`;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(0, H - dashH * 0.5);
@@ -68,18 +75,18 @@ export function createHud(container) {
     ctx.strokeStyle = 'rgba(120,200,255,0.32)';
     ctx.lineWidth = 2;
     ctx.strokeRect(12, 12, W - 24, H - 24);
-    ctx.strokeStyle = 'rgba(120,255,200,0.55)';
+    ctx.strokeStyle = `rgba(${accent},0.55)`;
     ctx.lineWidth = 3;
-    const arm = 26;
+    const arm0 = 26;
     for (const [bx, by, dx, dy] of [[12, 12, 1, 1], [W - 12, 12, -1, 1], [12, H - 12, 1, -1], [W - 12, H - 12, -1, -1]]) {
       ctx.beginPath();
-      ctx.moveTo(bx + dx * arm, by); ctx.lineTo(bx, by); ctx.lineTo(bx, by + dy * arm);
+      ctx.moveTo(bx + dx * arm0, by); ctx.lineTo(bx, by); ctx.lineTo(bx, by + dy * arm0);
       ctx.stroke();
     }
 
     // ── Reticle ──
     const locked = !!s.locked;
-    ctx.strokeStyle = locked ? 'rgba(120,255,200,0.95)' : 'rgba(150,190,230,0.6)';
+    ctx.strokeStyle = locked ? `rgba(${accent},0.95)` : 'rgba(150,190,230,0.6)';
     ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(cx, cy, 26, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath();
@@ -89,43 +96,104 @@ export function createHud(container) {
     ctx.moveTo(cx, cy + 14); ctx.lineTo(cx, cy + 40);
     ctx.stroke();
     if (locked) {
-      ctx.fillStyle = 'rgba(120,255,200,0.9)';
+      ctx.fillStyle = `rgba(${accent},0.9)`;
       ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI * 2); ctx.fill();
     }
 
-    // ── Locked chord name (big, top-center) ──
-    if (s.locked) {
+    // ── Locked chord name (big, top-center) — faded/hidden per label mode ──
+    const llAlpha = s.lockedLabelAlpha == null ? 1 : s.lockedLabelAlpha;
+    if (s.locked && llAlpha > 0.02) {
+      ctx.save();
+      ctx.globalAlpha = llAlpha;
       ctx.textAlign = 'center';
       ctx.font = '700 16px system-ui, sans-serif';
       ctx.fillStyle = 'rgba(180,210,240,0.8)';
-      ctx.fillText('STRUM', cx, 44);
+      ctx.fillText(s.boss ? 'PEEL' : 'STRUM', cx, 44);
       ctx.font = '900 60px Arial Black, system-ui, sans-serif';
       ctx.fillStyle = '#ffe14d';
       ctx.shadowColor = 'rgba(255,220,60,0.6)'; ctx.shadowBlur = 16;
       ctx.fillText(s.locked, cx, 96);
       ctx.shadowBlur = 0;
+      ctx.restore();
+    } else if (s.locked) {
+      // Ear-only: no letter, but keep a small prompt so you know you're locked.
+      ctx.textAlign = 'center';
+      ctx.font = '700 16px system-ui, sans-serif';
+      ctx.fillStyle = `rgba(${accent},0.7)`;
+      ctx.fillText(s.boss ? 'PEEL BY EAR' : 'STRUM BY EAR', cx, 50);
     }
 
-    // ── Targeting bracket on the locked enemy (so you can tell WHICH ship) ──
+    // ── Boss shield bar (top-center, under the chord name) ──
+    if (s.boss) {
+      const b = s.boss;
+      const remaining = Math.max(0, b.plates - b.idx);
+      const bw = Math.min(440, W * 0.6), bx = cx - bw / 2, by = 120;
+      ctx.textAlign = 'center';
+      ctx.font = '800 15px system-ui, sans-serif';
+      ctx.fillStyle = '#ff7088';
+      ctx.fillText(`⚠ BOSS — ${b.name.toUpperCase()} ⚠`, cx, by - 8);
+      // Segmented shield plates.
+      const gap = 5, segW = (bw - gap * (b.plates - 1)) / b.plates;
+      for (let i = 0; i < b.plates; i++) {
+        const segX = bx + i * (segW + gap);
+        const intact = i < remaining;
+        ctx.fillStyle = intact ? '#ff5a78' : 'rgba(120,140,160,0.18)';
+        if (intact) { ctx.shadowColor = 'rgba(255,90,120,0.7)'; ctx.shadowBlur = 8; }
+        ctx.fillRect(segX, by, segW, 12);
+        ctx.shadowBlur = 0;
+      }
+      ctx.strokeStyle = 'rgba(255,120,140,0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(bx, by, bw, 12);
+    }
+
+    // ── Targeting bracket on the locked enemy (lock-on converge animation) ──
     if (s.lockedScreen) {
+      // Track lock changes to drive a brief converge-in animation.
+      if (s.lockKey && s.lockKey !== lockKey) { lockKey = s.lockKey; lockAt = now; }
+      const conv = Math.min(1, (now - lockAt) / 260); // 0→1 settle
+      const ease = 1 - Math.pow(1 - conv, 3);
       const { x, y, r } = s.lockedScreen;
-      const p = r + Math.sin(performance.now() * 0.006) * 3;
+      const spread = r * (1 + (1 - ease) * 0.8);            // start wide, snap in
+      const p = spread + Math.sin(now * 0.006) * 3;
       const arm = p * 0.45;
-      ctx.strokeStyle = 'rgba(120,255,200,0.95)';
-      ctx.lineWidth = 3;
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate((1 - ease) * 0.5);                          // small settle spin
+      ctx.strokeStyle = `rgba(${accent},${0.5 + 0.45 * ease})`;
+      ctx.lineWidth = s.boss ? 4 : 3;
       for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-        const px = x + sx * p, py = y + sy * p;
+        const px = sx * p, py = sy * p;
         ctx.beginPath();
         ctx.moveTo(px, py - sy * arm); ctx.lineTo(px, py); ctx.lineTo(px - sx * arm, py);
         ctx.stroke();
       }
-      if (s.locked) {
+      ctx.restore();
+      if (s.locked && !s.boss && llAlpha > 0.02) {
+        ctx.save();
+        ctx.globalAlpha = llAlpha;
         ctx.textAlign = 'center';
         ctx.font = '900 24px Arial Black, system-ui, sans-serif';
         ctx.fillStyle = '#ffe14d';
         ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 6;
         ctx.fillText(s.locked, x, y - p - 8);
         ctx.shadowBlur = 0;
+        ctx.restore();
+      }
+      // "Now sounding" pulse — when the enemy voices its chord, ping a ring +
+      // ♪ at the ship so you know exactly when to listen.
+      if (s.cueAt && now - s.cueAt < 600) {
+        const el = (now - s.cueAt) / 600;
+        ctx.save();
+        ctx.globalAlpha = (1 - el) * 0.9;
+        ctx.strokeStyle = `rgba(${accent},1)`;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(x, y, 18 + el * 48, 0, Math.PI * 2); ctx.stroke();
+        ctx.font = '700 24px system-ui, sans-serif';
+        ctx.fillStyle = `rgba(${accent},1)`;
+        ctx.textAlign = 'center';
+        ctx.fillText('♪', x, y - 34 - el * 12);
+        ctx.restore();
       }
     }
 
@@ -141,19 +209,24 @@ export function createHud(container) {
     // ── Combo (top-right) ──
     if (s.combo > 1) {
       ctx.textAlign = 'right';
+      const pulse = 1 + Math.max(0, 1 - (now - (s.comboAt || 0)) / 200) * 0.4;
+      ctx.save();
+      ctx.translate(W - 28, 40);
+      ctx.scale(pulse, pulse);
       ctx.font = '900 24px Arial Black, system-ui, sans-serif';
-      ctx.fillStyle = '#7fffd4';
-      ctx.fillText(`x${s.combo}`, W - 28, 46);
+      ctx.fillStyle = `rgba(${accent},1)`;
+      ctx.fillText(`x${s.combo}`, 0, 6);
+      ctx.restore();
     }
 
     // ── Hull bar (bottom-center) ──
-    const bw = Math.min(280, W * 0.5), bx = cx - bw / 2, by = H - 40;
+    const bw2 = Math.min(280, W * 0.5), bx2 = cx - bw2 / 2, by2 = H - 40;
     ctx.textAlign = 'left';
     ctx.font = '600 12px system-ui, sans-serif';
     ctx.fillStyle = 'rgba(180,210,240,0.75)';
-    ctx.fillText('HULL', bx, by - 6);
+    ctx.fillText('HULL', bx2, by2 - 6);
     const hullFrac = s.hull / s.hullMax;
-    roundedBar(bx, by, bw, 12, hullFrac, hullFrac > 0.33 ? '#54e0a0' : '#ff5566');
+    roundedBar(bx2, by2, bw2, 12, hullFrac, hullFrac > 0.33 ? '#54e0a0' : '#ff5566');
 
     // ── Input level meter (bottom-left) ──
     const lw = 120, lx = 28, ly = H - 40;
@@ -161,9 +234,17 @@ export function createHud(container) {
     ctx.fillText('INPUT', lx, ly - 6);
     roundedBar(lx, ly, lw, 8, Math.min(1, (s.level || 0) * 4), '#66ccff');
 
+    // ── Livery badge (bottom-right) ──
+    if (s.skin) {
+      ctx.textAlign = 'right';
+      ctx.font = '700 12px system-ui, sans-serif';
+      ctx.fillStyle = `rgba(${accent},0.9)`;
+      ctx.fillText(`${s.skin.badge || ''} ${(s.skin.label || '').toUpperCase()} LIVERY`, W - 28, ly + 2);
+    }
+
     // ── Last hit/miss verdict (fades out) ──
     if (s.verdict) {
-      const el = (performance.now() - s.verdict.at) / 1100;
+      const el = (now - s.verdict.at) / 1100;
       if (el < 1) {
         ctx.textAlign = 'center';
         ctx.globalAlpha = 1 - el;
@@ -174,9 +255,64 @@ export function createHud(container) {
       }
     }
 
+    // ── Post-kill chord reveal (ear-training answer at the explosion) ──
+    if (s.reveal) {
+      const el = (now - s.reveal.at) / 1150;
+      if (el < 1) {
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, 1 - el);
+        ctx.textAlign = 'center';
+        ctx.font = '900 38px Arial Black, system-ui, sans-serif';
+        ctx.fillStyle = '#7fffd4';
+        ctx.shadowColor = 'rgba(0,0,0,0.85)'; ctx.shadowBlur = 12;
+        ctx.fillText(s.reveal.text, s.reveal.x, s.reveal.y - el * 26);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      }
+    }
+
+    // ── Bonus toast (wave-clear / no-damage / boss-down) ──
+    if (s.toast) {
+      const el = (now - s.toast.at) / 1500;
+      if (el < 1) {
+        const a = el < 0.15 ? el / 0.15 : (1 - (el - 0.15) / 0.85);
+        ctx.textAlign = 'center';
+        ctx.globalAlpha = Math.max(0, a);
+        ctx.font = '900 40px Arial Black, system-ui, sans-serif';
+        ctx.fillStyle = '#ffe14d';
+        ctx.shadowColor = 'rgba(255,220,60,0.8)'; ctx.shadowBlur = 22;
+        ctx.fillText(s.toast.text, cx, cy - 120 - el * 16);
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      }
+    }
+
+    // ── Wave banner (big, brief, center) ──
+    if (s.banner) {
+      const el = (now - s.banner.at) / 1600;
+      if (el < 1) {
+        const a = el < 0.2 ? el / 0.2 : (1 - (el - 0.2) / 0.8);
+        ctx.textAlign = 'center';
+        ctx.globalAlpha = Math.max(0, a);
+        ctx.font = '900 64px Arial Black, system-ui, sans-serif';
+        ctx.fillStyle = s.banner.boss ? '#ff6078' : `rgba(${accent},1)`;
+        ctx.shadowColor = s.banner.boss ? 'rgba(255,70,90,0.8)' : `rgba(${accent},0.8)`;
+        ctx.shadowBlur = 26;
+        ctx.fillText(s.banner.text, cx, cy - 30);
+        if (s.banner.sub) {
+          ctx.font = '800 24px system-ui, sans-serif';
+          ctx.fillStyle = '#eaf6ff';
+          ctx.shadowBlur = 8;
+          ctx.fillText(s.banner.sub, cx, cy + 18);
+        }
+        ctx.shadowBlur = 0;
+        ctx.globalAlpha = 1;
+      }
+    }
+
     // ── Transient hit/miss flash ──
     if (flashColor) {
-      const el = (performance.now() - flashAt) / 260;
+      const el = (now - flashAt) / 260;
       if (el < 1) {
         ctx.fillStyle = `rgba(${flashColor},${(1 - el) * 0.28})`;
         ctx.fillRect(0, 0, W, H);

@@ -2,7 +2,9 @@
 //
 // Forward-facing cockpit guns. On every strum we fire two tracers from the
 // lower corners of the view; a hit converges on the target and detonates it,
-// a wrong chord veers slightly past (the "shoots but misses" feedback).
+// a wrong chord veers slightly past (the "shoots but misses" feedback). Tracer
+// colour follows the active livery (setSkin). The boss adds a shield-peel
+// ripple per plate and a much larger core detonation.
 // Receives the Three.js module (T), the scene, and the camera from game.js.
 
 function makeDotTexture(T) {
@@ -32,33 +34,36 @@ export function createWeapons(T, scene, camera) {
     return new T.CanvasTexture(c);
   })();
 
+  // Player tracer / muzzle colours — re-themed by the active livery.
+  let tracerColor = 0x66ffcc;
+  let muzzleColor = 0x66ffcc;
+
   // Two gun muzzles in the lower corners of the cockpit view.
   const MUZZLES = [new T.Vector3(-3.2, -2.6, -1.5), new T.Vector3(3.2, -2.6, -1.5)];
 
-  function _beam(from, to, color) {
-    const mat = new T.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, fog: false });
+  function _beam(from, to, color, opacity, life) {
+    const op = opacity == null ? 0.9 : opacity;
+    const ttl = life == null ? 0.14 : life;
+    const mat = new T.MeshBasicMaterial({ color, transparent: true, opacity: op, fog: false });
     const mesh = new T.Mesh(gBeam, mat);
     const len = from.distanceTo(to);
     mesh.position.copy(from).lerp(to, 0.5);
     mesh.lookAt(to);
     mesh.scale.set(0.16, 0.16, len);
     scene.add(mesh);
-    let life = 0.14;
+    let t = ttl;
     effects.push({
-      update(dt) {
-        life -= dt;
-        mat.opacity = Math.max(0, life / 0.14) * 0.9;
-        return life > 0;
-      },
+      update(dt) { t -= dt; mat.opacity = Math.max(0, t / ttl) * op; return t > 0; },
       dispose() { scene.remove(mesh); mat.dispose(); },
     });
   }
 
-  function _flash(pos, color) {
+  function _flash(pos, color, size) {
+    const sz = size || 2.4;
     const mat = new T.SpriteMaterial({ map: dotTex, color, transparent: true, opacity: 1, blending: T.AdditiveBlending, depthTest: false, fog: false });
     const s = new T.Sprite(mat);
     s.position.copy(pos);
-    s.scale.set(2.4, 2.4, 1);
+    s.scale.set(sz, sz, 1);
     scene.add(s);
     let life = 0.12;
     effects.push({
@@ -66,7 +71,7 @@ export function createWeapons(T, scene, camera) {
         life -= dt;
         const k = Math.max(0, life / 0.12);
         mat.opacity = k;
-        s.scale.setScalar(1 + (1 - k) * 3);
+        s.scale.setScalar(sz * (1 + (1 - k) * 1.5));
         return life > 0;
       },
       dispose() { scene.remove(s); mat.dispose(); },
@@ -93,6 +98,81 @@ export function createWeapons(T, scene, camera) {
     });
   }
 
+  // An expanding shockwave ring sprite at `pos`.
+  function _ring(pos, color, from, to, dur, opacity) {
+    const mat = new T.SpriteMaterial({ map: ringTex, color, transparent: true, opacity: opacity || 0.9, blending: T.AdditiveBlending, depthTest: false, fog: false });
+    const ring = new T.Sprite(mat);
+    ring.position.copy(pos);
+    ring.scale.setScalar(from);
+    scene.add(ring);
+    let t = 0;
+    effects.push({
+      update(dt) {
+        t += dt; const k = t / dur;
+        ring.scale.setScalar(from + k * (to - from));
+        mat.opacity = Math.max(0, (opacity || 0.9) * (1 - k));
+        return t < dur;
+      },
+      dispose() { scene.remove(ring); mat.dispose(); },
+    });
+  }
+
+  // A spark burst of `n` points at `pos` flying outward.
+  function _sparks(pos, color, n, speed, size, ttl) {
+    const positions = new Float32Array(n * 3);
+    const vel = [];
+    for (let i = 0; i < n; i++) {
+      positions[i * 3] = pos.x; positions[i * 3 + 1] = pos.y; positions[i * 3 + 2] = pos.z;
+      const sp = speed * (0.5 + Math.random());
+      const th = Math.random() * Math.PI * 2;
+      const ph = Math.acos(Math.random() * 2 - 1);
+      vel.push(new T.Vector3(Math.sin(ph) * Math.cos(th), Math.sin(ph) * Math.sin(th), Math.cos(ph)).multiplyScalar(sp));
+    }
+    const geo = new T.BufferGeometry();
+    geo.setAttribute('position', new T.BufferAttribute(positions, 3));
+    const mat = new T.PointsMaterial({ map: dotTex, color, size, transparent: true, opacity: 1, blending: T.AdditiveBlending, depthTest: false, sizeAttenuation: true, fog: false });
+    const pts = new T.Points(geo, mat);
+    scene.add(pts);
+    effects.push({
+      update(dt) {
+        this._t = (this._t || 0) + dt;
+        const arr = geo.attributes.position.array;
+        for (let i = 0; i < n; i++) {
+          vel[i].multiplyScalar(Math.pow(0.02, dt));
+          arr[i * 3] += vel[i].x * dt;
+          arr[i * 3 + 1] += vel[i].y * dt;
+          arr[i * 3 + 2] += vel[i].z * dt;
+        }
+        geo.attributes.position.needsUpdate = true;
+        mat.opacity = Math.max(0, 1 - this._t / ttl);
+        return this._t < ttl;
+      },
+      dispose() { scene.remove(pts); geo.dispose(); mat.dispose(); },
+    });
+  }
+
+  function _debris(pos, color, n, speed, ttl) {
+    for (let i = 0; i < n; i++) {
+      const sm = new T.MeshBasicMaterial({ color, fog: false, transparent: true });
+      const sh = new T.Mesh(gShard, sm);
+      sh.position.copy(pos);
+      scene.add(sh);
+      const dv = new T.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize().multiplyScalar(speed * (0.6 + Math.random() * 0.8));
+      const rx = (Math.random() * 2 - 1) * 8, ry = (Math.random() * 2 - 1) * 8;
+      effects.push({
+        update(dt) {
+          this._t = (this._t || 0) + dt;
+          sh.position.addScaledVector(dv, dt);
+          dv.multiplyScalar(Math.pow(0.2, dt));
+          sh.rotation.x += rx * dt; sh.rotation.y += ry * dt;
+          sm.opacity = Math.max(0, 1 - this._t / ttl);
+          return this._t < ttl;
+        },
+        dispose() { scene.remove(sh); sm.dispose(); },
+      });
+    }
+  }
+
   // Fire both guns toward target. `hit` converges on it; otherwise the beams
   // pass slightly wide.
   function fire(targetPos, hit) {
@@ -101,9 +181,9 @@ export function createWeapons(T, scene, camera) {
       aim.x += (Math.random() < 0.5 ? -1 : 1) * (3 + Math.random() * 3);
       aim.y += (Math.random() * 2 - 1) * 3;
     }
-    const beamColor = hit ? 0x66ffcc : 0xff5566;
+    const beamColor = hit ? tracerColor : 0xff5566;
     for (const m of MUZZLES) {
-      _flash(m, beamColor);
+      _flash(m, hit ? muzzleColor : 0xff5566);
       _beam(m, aim, beamColor);
       _bolt(m, aim, beamColor);
     }
@@ -134,81 +214,46 @@ export function createWeapons(T, scene, camera) {
     });
   }
 
+  // Boss plate peeled (but core still alive): a bright shield ripple + spark
+  // puff at the impact point, in the player's tracer colour.
+  function shieldHit(pos) {
+    _flash(pos, tracerColor, 4);
+    _ring(pos, tracerColor, 3, 16, 0.45, 0.85);
+    _sparks(pos, tracerColor, 36, 24, 2.4, 0.5);
+  }
+
   // Full detonation at pos: spark burst + shockwave ring + tumbling debris.
   function explode(pos, color) {
-    // ── Spark burst ──
-    const N = 90;
-    const positions = new Float32Array(N * 3);
-    const vel = [];
-    for (let i = 0; i < N; i++) {
-      positions[i * 3] = pos.x; positions[i * 3 + 1] = pos.y; positions[i * 3 + 2] = pos.z;
-      const sp = 16 + Math.random() * 30;
-      const th = Math.random() * Math.PI * 2;
-      const ph = Math.acos(Math.random() * 2 - 1);
-      vel.push(new T.Vector3(Math.sin(ph) * Math.cos(th), Math.sin(ph) * Math.sin(th), Math.cos(ph)).multiplyScalar(sp));
-    }
-    const geo = new T.BufferGeometry();
-    geo.setAttribute('position', new T.BufferAttribute(positions, 3));
-    const mat = new T.PointsMaterial({ map: dotTex, color, size: 2.8, transparent: true, opacity: 1, blending: T.AdditiveBlending, depthTest: false, sizeAttenuation: true, fog: false });
-    const pts = new T.Points(geo, mat);
-    scene.add(pts);
-    effects.push({
-      update(dt) {
-        this._t = (this._t || 0) + dt;
-        const arr = geo.attributes.position.array;
-        for (let i = 0; i < N; i++) {
-          vel[i].multiplyScalar(Math.pow(0.02, dt));
-          arr[i * 3] += vel[i].x * dt;
-          arr[i * 3 + 1] += vel[i].y * dt;
-          arr[i * 3 + 2] += vel[i].z * dt;
-        }
-        geo.attributes.position.needsUpdate = true;
-        mat.opacity = Math.max(0, 1 - this._t / 0.7);
-        return this._t < 0.7;
-      },
-      dispose() { scene.remove(pts); geo.dispose(); mat.dispose(); },
-    });
-
-    // ── Shockwave ring ──
-    const ringMat = new T.SpriteMaterial({ map: ringTex, color: 0xffffff, transparent: true, opacity: 0.9, blending: T.AdditiveBlending, depthTest: false, fog: false });
-    const ring = new T.Sprite(ringMat);
-    ring.position.copy(pos);
-    ring.scale.setScalar(2);
-    scene.add(ring);
-    effects.push({
-      update(dt) {
-        this._t = (this._t || 0) + dt;
-        const k = this._t / 0.4;
-        ring.scale.setScalar(2 + k * 22);
-        ringMat.opacity = Math.max(0, 0.9 * (1 - k));
-        return this._t < 0.4;
-      },
-      dispose() { scene.remove(ring); ringMat.dispose(); },
-    });
-
-    // ── Debris shards ──
-    for (let i = 0; i < 8; i++) {
-      const sm = new T.MeshBasicMaterial({ color, fog: false });
-      const sh = new T.Mesh(gShard, sm);
-      sh.position.copy(pos);
-      scene.add(sh);
-      const dv = new T.Vector3(Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 2 - 1).normalize().multiplyScalar(10 + Math.random() * 18);
-      const rx = (Math.random() * 2 - 1) * 8, ry = (Math.random() * 2 - 1) * 8;
-      effects.push({
-        update(dt) {
-          this._t = (this._t || 0) + dt;
-          sh.position.addScaledVector(dv, dt);
-          dv.multiplyScalar(Math.pow(0.2, dt));
-          sh.rotation.x += rx * dt; sh.rotation.y += ry * dt;
-          sm.opacity = Math.max(0, 1 - this._t / 0.6);
-          sm.transparent = true;
-          return this._t < 0.6;
-        },
-        dispose() { scene.remove(sh); sm.dispose(); },
-      });
-    }
-
+    _sparks(pos, color, 90, 30, 2.8, 0.7);
+    _ring(pos, 0xffffff, 2, 24, 0.4, 0.9);
+    _debris(pos, color, 8, 22, 0.6);
     _flash(pos, 0xffffff);
+  }
+
+  // The boss core goes up: layered rings, a huge spark cloud, heavy debris,
+  // and a sustained white core flash.
+  function bossExplode(pos, color) {
+    _sparks(pos, color, 220, 46, 4.2, 1.1);
+    _sparks(pos, 0xffffff, 90, 30, 3.0, 0.8);
+    _ring(pos, 0xffffff, 3, 60, 0.6, 1);
+    _ring(pos, color, 3, 90, 0.85, 0.9);
+    _ring(pos, 0xffd0a0, 3, 44, 0.5, 0.9);
+    _debris(pos, color, 22, 34, 1.0);
+    _flash(pos, 0xffffff, 7);
+    // A second, delayed bloom for a rolling-detonation feel.
+    let t = 0;
+    effects.push({
+      update(dt) {
+        t += dt;
+        if (t >= 0.18 && !this._done) {
+          this._done = true;
+          _sparks(pos, 0xffe0b0, 80, 28, 3.4, 0.7);
+          _ring(pos, 0xffffff, 3, 48, 0.45, 0.85);
+        }
+        return t < 0.2;
+      },
+      dispose() {},
+    });
   }
 
   function update(dt) {
@@ -230,5 +275,8 @@ export function createWeapons(T, scene, camera) {
     ringTex.dispose();
   }
 
-  return { fire, enemyShot, explode, update, reset, dispose };
+  return {
+    fire, enemyShot, shieldHit, explode, bossExplode, update, reset, dispose,
+    setSkin(skin) { if (skin) { tracerColor = skin.tracer; muzzleColor = skin.muzzle; } },
+  };
 }
