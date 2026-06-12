@@ -89,6 +89,8 @@ export function bossProgression(difficulty, rnd) {
 // pitchCheckCents: 0 = energy-only (most forgiving); larger = wider pitch
 //   tolerance; we keep easy energy-only and tighten as difficulty rises.
 // minHitRatio: fraction of chord strings that must ring to count as a hit.
+// bossSpeed: boss approach speed (world units/sec). bossShots: SECONDS BETWEEN
+// boss shots (a cooldown interval, not a shot count — smaller = more frequent).
 export function tierParams(difficulty) {
   // Detection uses the engine's harmonic-comb verifier (the mode note_detect
   // uses for chords) — pitchCheckCents ~50, plus harmonicSnr (harmonic-to-floor

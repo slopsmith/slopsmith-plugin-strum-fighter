@@ -370,6 +370,9 @@ export function createEnemies(T, scene, opts) {
       if (e.boss) { e.lblMat.opacity = e.isLocked ? 1 : 0.95; continue; }
       if (e.isLocked) { e.lblMat.color.setHex(0xffe14d); e.mat.emissiveIntensity = 0.7; }
       else { e.lblMat.color.setHex(0xffffff); e.mat.emissiveIntensity = 0.3; }
+      // Apply the lock change to opacity now (update() runs before setLocked in
+      // the loop, so otherwise the new lock state lags a frame).
+      e.lblMat.opacity = labelAlpha(e);
     }
   }
 

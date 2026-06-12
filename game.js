@@ -415,6 +415,8 @@
         const boss = enemies.bossInPlay();
         if (boss && boss.atHold && !gameOver) {
           boss.fireAcc += dt;
+          // tier.bossShots is the SECONDS BETWEEN boss shots (a cooldown), not a
+          // shot count — smaller = more frequent fire.
           if (boss.fireAcc >= tier.bossShots) {
             boss.fireAcc = 0;
             weapons.enemyShot(boss.group.position.clone(), () => {
