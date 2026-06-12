@@ -225,9 +225,11 @@ export function createSynth() {
 
   return {
     start() {
-      if (!enabled || !ensure()) return;
+      // Always prime/resume the context (off the launch gesture) so chord cues
+      // work even with music off; only run the backing groove when enabled.
+      if (!ensure()) return;
       if (ctx.state === 'suspended') ctx.resume().catch(() => {});
-      if (!loopTimer) { step = 0; tickLoop(); }
+      if (enabled && !loopTimer) { step = 0; tickLoop(); }
     },
     stop() {
       if (loopTimer) { clearTimeout(loopTimer); loopTimer = null; }

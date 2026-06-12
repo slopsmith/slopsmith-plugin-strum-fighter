@@ -480,7 +480,9 @@
     }
 
     audio.start();
-    if (musicOn) synth.start();
+    // Prime the synth even when music is off so chord cues can play (start()
+    // resumes the audio context but only runs the groove when music is on).
+    if (musicOn || chordSoundOn) synth.start();
     raf = requestAnimationFrame(frame);
 
     runState = {
